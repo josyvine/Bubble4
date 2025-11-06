@@ -20,6 +20,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.webkit.MimeTypeMap;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -33,6 +34,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.io.File;
 import java.io.Serializable;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -164,7 +166,7 @@ public class ImageViewerActivity extends Activity {
     }
 
     private void showFileActionDialog() {
-        final CharSequence[] options = {"Details", "Compress", "Hide", "Move to Recycle Bin", "Delete Permanently"};
+        final CharSequence[] options = {"Details", "Send to Drop Zone", "Compress", "Hide", "Move to Recycle Bin", "Delete Permanently"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose an action");
         builder.setItems(options, new DialogInterface.OnClickListener() {
@@ -174,16 +176,19 @@ public class ImageViewerActivity extends Activity {
 						case 0: // Details
 							showDetailsDialog();
 							break;
-						case 1: // Compress
+                        case 1: // Send to Drop Zone
+                            showSendToDropDialog(new File(mFilePaths.get(mCurrentIndex)));
+                            break;
+						case 2: // Compress
 							compressFile();
 							break;
-						case 2: // Hide
+						case 3: // Hide
 							hideFile();
 							break;
-						case 3: // Move to Recycle
+						case 4: // Move to Recycle
 							moveToRecycleBin();
 							break;
-						case 4: // Delete
+						case 5: // Delete
 							performFileDeletion();
 							break;
 					}
@@ -250,6 +255,70 @@ public class ImageViewerActivity extends Activity {
 			});
 
         dialog.show();
+    }
+    
+    private void showSendToDropDialog(final File fileToSend) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_send_drop, null);
+        final EditText receiverUsernameInput = dialogView.findViewById(R.id.edit_text_receiver_username);
+
+        builder.setView(dialogView)
+                .setPositiveButton("Send", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int id) {
+                        String receiverUsername = receiverUsernameInput.getText().toString().trim();
+                        if (receiverUsername.isEmpty()) {
+                            Toast.makeText(ImageViewerActivity.this, "Receiver username cannot be empty.", Toast.LENGTH_SHORT).show();
+                        } else {
+                            showSenderWarningDialog(receiverUsername, fileToSend);
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null);
+        builder.create().show();
+    }
+    
+    private void showSenderWarningDialog(final String receiverUsername, final File fileToSend) {
+        final String secretNumber = generateSecretNumber();
+
+        new AlertDialog.Builder(this)
+            .setTitle("Important: Connection Stability")
+            .setMessage("You are about to act as a temporary server for this file transfer.\n\n"
+                    + "Please keep the app open and maintain a stable internet connection until the transfer is complete.\n\n"
+                    + "Your Secret Number for this transfer is:\n" + secretNumber + "\n\nShare this number with the receiver.")
+            .setPositiveButton("I Understand, Start Sending", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    startSenderService(receiverUsername, secretNumber, fileToSend);
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void startSenderService(String receiverUsername, String secretNumber, File fileToSend) {
+        if (fileToSend == null || !fileToSend.exists()) {
+            Toast.makeText(this, "Error: File to send does not exist.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, SenderService.class);
+        intent.setAction(SenderService.ACTION_START_SEND);
+        intent.putExtra(SenderService.EXTRA_FILE_PATH, fileToSend.getAbsolutePath());
+        intent.putExtra(SenderService.EXTRA_RECEIVER_USERNAME, receiverUsername);
+        intent.putExtra(SenderService.EXTRA_SECRET_NUMBER, secretNumber);
+        ContextCompat.startForegroundService(this, intent);
+    }
+
+    private String generateSecretNumber() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[16];
+        random.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private void compressFile() {
