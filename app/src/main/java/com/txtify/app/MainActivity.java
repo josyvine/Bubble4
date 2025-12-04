@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.ClipData;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -12,6 +13,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.text.InputType;
+import android.util.Log;
 import android.view.DragEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -38,6 +40,15 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.documentfile.provider.DocumentFile;
 import com.google.android.material.navigation.NavigationView;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.play.core.appupdate.AppUpdateInfo;
+import com.google.android.play.core.appupdate.AppUpdateManager;
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
+import com.google.android.play.core.install.model.AppUpdateType;
+import com.google.android.play.core.install.model.UpdateAvailability;
+import com.google.android.play.core.tasks.Task;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -64,6 +75,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private static final int MULTI_FILE_PICKER_REQUEST_CODE = 103;
     private static final int ZIP_PICKER_REQUEST_CODE = 104;
     private static final int ZIP_CONTENTS_REQUEST_CODE = 105;
+    
+    // NEW: Request code for the In-App Update flow
+    private static final int APP_UPDATE_REQUEST_CODE = 200;
 
     private static final String PREFS_NAME = "TxtifyPrefs";
     private static final String KEY_SAVE_FOLDER_URI = "saveFolderUri";
@@ -85,6 +99,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private LinearLayout junctionBox;
     private ArrayList<Uri> collectedUris = new ArrayList<>();
+
+    // NEW: AdMob Banner View
+    private AdView mAdView;
+    // NEW: App Update Manager
+    private AppUpdateManager appUpdateManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,6 +135,81 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
 
         setupUI();
+
+        // NEW: Load Banner Ad
+        mAdView = findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
+
+        // NEW: Check for immediate updates
+        appUpdateManager = AppUpdateManagerFactory.create(this);
+        checkForAppUpdate();
+    }
+
+    // NEW: Method to check for Google Play updates
+    private void checkForAppUpdate() {
+        Task<AppUpdateInfo> appUpdateInfoTask = appUpdateManager.getAppUpdateInfo();
+
+        appUpdateInfoTask.addOnSuccessListener(appUpdateInfo -> {
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                    // This example applies an immediate update. To apply a flexible update
+                    // instead, pass in AppUpdateType.FLEXIBLE
+                    && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                
+                try {
+                    appUpdateManager.startUpdateFlowForResult(
+                            appUpdateInfo,
+                            AppUpdateType.IMMEDIATE,
+                            this,
+                            APP_UPDATE_REQUEST_CODE);
+                } catch (IntentSender.SendIntentException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+    }
+
+    // NEW: Check on resume if the update is in progress (for Immediate updates)
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mAdView != null) {
+            mAdView.resume();
+        }
+
+        appUpdateManager
+            .getAppUpdateInfo()
+            .addOnSuccessListener(appUpdateInfo -> {
+                if (appUpdateInfo.updateAvailability()
+                        == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                    // If an in-app update is already in progress, resume the update.
+                    try {
+                        appUpdateManager.startUpdateFlowForResult(
+                                appUpdateInfo,
+                                AppUpdateType.IMMEDIATE,
+                                this,
+                                APP_UPDATE_REQUEST_CODE);
+                    } catch (IntentSender.SendIntentException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+    }
+
+    @Override
+    protected void onPause() {
+        if (mAdView != null) {
+            mAdView.pause();
+        }
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mAdView != null) {
+            mAdView.destroy();
+        }
+        super.onDestroy();
     }
 
     private void setupUI() {
@@ -383,6 +477,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        
+        // NEW: Handle the result of the In-App Update
+        if (requestCode == APP_UPDATE_REQUEST_CODE) {
+            if (resultCode != RESULT_OK) {
+                // If the update is cancelled or fails, you can request to start the update again.
+                // Since this is a forced update, we might want to close the app if they refuse.
+                Toast.makeText(this, "Update is required to continue.", Toast.LENGTH_SHORT).show();
+                finish(); 
+                return;
+            }
+        }
+
         if (resultCode != RESULT_OK || data == null) return;
 
         if (requestCode == FOLDER_PICKER_REQUEST_CODE && data.getData() != null) {
@@ -862,4 +968,3 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 }
-
