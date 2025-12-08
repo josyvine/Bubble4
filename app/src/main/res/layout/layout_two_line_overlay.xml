@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
-        android:text="Place Green Line at START of text.\nClick NEXT to scroll."
+        android:text="1. Frame Text\n2. Click ADD\n3. Scroll & Repeat\n4. Click DONE"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:gravity="center"
@@ -29,69 +29,81 @@
     <!-- Visual Handle for Top Line -->
     <ImageView
         android:id="@+id/handle_top"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@android:drawable/btn_star_big_on"
         android:layout_alignTop="@id/line_top"
         android:layout_alignParentEnd="true"
         android:layout_marginEnd="16dp"
-        android:layout_marginTop="-14dp"
+        android:layout_marginTop="-18dp"
         android:contentDescription="Drag Handle"
         android:tint="#4CAF50"/>
 
     <!-- Bottom Line (End of Selection) - Red -->
-    <!-- Initially GONE -->
+    <!-- Changed to VISIBLE so you can frame text immediately -->
     <View
         android:id="@+id/line_bottom"
         android:layout_width="match_parent"
         android:layout_height="4dp"
         android:background="#F44336"
         android:layout_marginTop="400dp"
-        android:visibility="gone"/>
+        android:visibility="visible"/>
 
     <!-- Visual Handle for Bottom Line -->
-    <!-- Initially GONE -->
+    <!-- Changed to VISIBLE -->
     <ImageView
         android:id="@+id/handle_bottom"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@android:drawable/btn_star_big_on"
         android:layout_alignTop="@id/line_bottom"
         android:layout_alignParentEnd="true"
         android:layout_marginEnd="16dp"
-        android:layout_marginTop="-14dp"
+        android:layout_marginTop="-18dp"
         android:contentDescription="Drag Handle"
         android:tint="#F44336"
-        android:visibility="gone"/>
+        android:visibility="visible"/>
 
-    <!-- Action Buttons -->
+    <!-- Action Buttons Container -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_alignParentEnd="true"
-        android:layout_centerVertical="true"
-        android:layout_marginEnd="16dp"
-        android:gravity="end">
+        android:orientation="horizontal"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="30dp"
+        android:gravity="center">
 
-        <!-- Dynamic Action Button (Next -> Stop -> Copy) -->
-        <Button
-            android:id="@+id/btn_action"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="NEXT"
-            android:textStyle="bold"
-            android:backgroundTint="?android:attr/colorPrimary"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="16dp"/>
-
+        <!-- CLOSE (X) -->
         <ImageButton
             android:id="@+id/btn_close"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginEnd="20dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:background="@android:drawable/btn_default"
             android:contentDescription="Close Overlay"/>
+
+        <!-- ADD PAGE (Camera) -->
+        <Button
+            android:id="@+id/btn_add"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ADD"
+            android:textStyle="bold"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="10dp"/>
+
+        <!-- DONE (Check) -->
+        <Button
+            android:id="@+id/btn_done"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DONE"
+            android:textStyle="bold"
+            android:backgroundTint="#4CAF50"
+            android:textColor="#FFFFFF"/>
 
     </LinearLayout>
 
