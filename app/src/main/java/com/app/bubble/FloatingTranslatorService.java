@@ -53,6 +53,10 @@ import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -84,13 +88,19 @@ public class FloatingTranslatorService extends Service {
     private String latestOcrText = ""; 
     private String latestTranslation = "";
     
-    // --- MODE SWITCH ---
-    // false = Normal Translate Mode (Bubble)
-    // true = Manual Copy Mode (Two-Line Overlay)
+    // --- NEW LOGIC FLAGS ---
+    // false = Normal Bubble Translate Mode
+    // true = Two-Line Manual Copy Mode
     private boolean isManualCopyMode = false;
 
     // Accumulator for Manual Multi-Page Screenshot
     private StringBuilder accumulatedTextBuilder = new StringBuilder();
+
+    // Languages
+    private String[] languages = {"English", "Spanish", "French", "German", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Malayalam"};
+    private String[] languageCodes = {"en", "es", "fr", "de", "hi", "bn", "mr", "te", "ta", "ml"};
+    private String currentSourceLang = "English"; 
+    private String currentTargetLang = "Malayalam"; 
 
     // Screen Capture components
     private MediaProjectionManager mediaProjectionManager;
@@ -98,12 +108,6 @@ public class FloatingTranslatorService extends Service {
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
     private int screenWidth, screenHeight, screenDensity;
-
-    // Languages
-    private String[] languages = {"English", "Spanish", "French", "German", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Malayalam"};
-    private String[] languageCodes = {"en", "es", "fr", "de", "hi", "bn", "mr", "te", "ta", "ml"};
-    private String currentSourceLang = "English"; 
-    private String currentTargetLang = "Malayalam"; 
 
     // Current Capture Logic
     private Rect currentCropRect;
@@ -136,6 +140,7 @@ public class FloatingTranslatorService extends Service {
             }
 
             // 2. Handle Manual Screenshot Logic (Two Line Overlay)
+            // This is the new logic for ADD/DONE buttons
             if (intent.hasExtra("COMMAND")) {
                 String command = intent.getStringExtra("COMMAND");
                 Rect selectionRect = intent.getParcelableExtra("RECT");
@@ -149,7 +154,8 @@ public class FloatingTranslatorService extends Service {
                     finishAndCopy();
                 }
             }
-            // 3. Handle Normal Crop (Bubble Translate)
+            // 3. Handle Normal Crop (Bubble Translate Logic)
+            // This preserves your original Bubble functionality
             else if (intent.hasExtra("RECT")) {
                 Rect selectionRect = intent.getParcelableExtra("RECT");
                 isManualCopyMode = false; // Set Mode: TRANSLATE
@@ -193,14 +199,16 @@ public class FloatingTranslatorService extends Service {
         startForeground(1337, notification);
     }
 
-    // --- CAPTURE LOGIC ---
+    // --- SHARED CAPTURE LOGIC (Used by both Bubble and Overlay) ---
     private void performSingleCapture(final Rect cropRect) {
         if (mediaProjection == null) {
             Toast.makeText(this, "Permission lost. Restart app.", Toast.LENGTH_SHORT).show();
+            requestPermissionRestart();
             return;
         }
         if (imageReader != null) imageReader.close();
 
+        // 1. Setup Image Reader
         imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2);
 
         try {
@@ -213,6 +221,7 @@ public class FloatingTranslatorService extends Service {
             return;
         }
 
+        // 2. Listen for the Image
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
@@ -226,6 +235,7 @@ public class FloatingTranslatorService extends Service {
                         int rowStride = planes[0].getRowStride();
                         int rowPadding = rowStride - pixelStride * screenWidth;
 
+                        // Create Full Bitmap
                         Bitmap fullBitmap = Bitmap.createBitmap(screenWidth + rowPadding / pixelStride, screenHeight, Bitmap.Config.ARGB_8888);
                         fullBitmap.copyPixelsFromBuffer(buffer);
 
@@ -237,17 +247,19 @@ public class FloatingTranslatorService extends Service {
 
                         if (width > 0 && height > 0) {
                             Bitmap cropped = Bitmap.createBitmap(fullBitmap, left, top, width, height);
-                            // Process based on mode
+                            
+                            // DECISION POINT: Bubble Translate OR Manual Copy?
                             if (isManualCopyMode) {
                                 processCapturedBitmapForCopy(cropped);
                             } else {
-                                performOcr(cropped); // Normal Translate
+                                // This is your Original Blue OCR Logic
+                                performOcr(cropped); 
                             }
                         }
 
                         fullBitmap.recycle();
                         image.close();
-                        stopCapture();
+                        stopCapture(); // Stop immediately after 1 frame
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -268,7 +280,7 @@ public class FloatingTranslatorService extends Service {
         }
     }
 
-    // --- PATH A: COPY MODE LOGIC ---
+    // --- PATH A: MANUAL COPY MODE LOGIC (The New Logic) ---
     private void processCapturedBitmapForCopy(Bitmap bitmap) {
         InputImage image = InputImage.fromBitmap(bitmap, 0);
         TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
@@ -283,6 +295,7 @@ public class FloatingTranslatorService extends Service {
                             pageText.append(txt).append("\n");
                         }
                     }
+                    // Accumulate text
                     synchronized (accumulatedTextBuilder) {
                         accumulatedTextBuilder.append(pageText.toString()).append("\n");
                     }
@@ -298,21 +311,25 @@ public class FloatingTranslatorService extends Service {
             Toast.makeText(this, "No text captured.", Toast.LENGTH_SHORT).show();
             return;
         }
-        // Copy
+        // Copy to Clipboard
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null) {
             ClipData clip = ClipData.newPlainText("Bubble Copy", finalText);
             clipboard.setPrimaryClip(clip);
             Toast.makeText(this, "Copied to Clipboard!", Toast.LENGTH_LONG).show();
         }
-        // Show Debug
+        // Show Debug Screen (Visual Confirmation)
         DebugActivity.sFilteredText = finalText;
         DebugActivity.sRawText = "Multi-Page Capture Completed.";
         DebugActivity.sErrorLog = "Clipboard Updated.";
+        DebugActivity.sLastBitmap = null;
+        DebugActivity.sLastRect = null;
+        
         Intent debugIntent = new Intent(this, DebugActivity.class);
         debugIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(debugIntent);
         
+        // Clear accumulator
         accumulatedTextBuilder.setLength(0);
     }
 
@@ -320,10 +337,12 @@ public class FloatingTranslatorService extends Service {
         if (text == null) return true;
         String t = text.trim();
         return t.equalsIgnoreCase("ADD") || t.equalsIgnoreCase("DONE") || 
-               t.equalsIgnoreCase("Bubble") || t.contains("Place Green Line");
+               t.equalsIgnoreCase("Bubble") || t.contains("Place Green Line") || 
+               t.contains("Place Red Line");
     }
 
-    // --- PATH B: TRANSLATE MODE LOGIC (Restored!) ---
+    // --- PATH B: NORMAL TRANSLATE MODE LOGIC (Your Original Logic) ---
+    // This is called when you use the normal bubble crop
     private void performOcr(Bitmap bitmap) {
         if (bitmap == null) return;
         InputImage image = InputImage.fromBitmap(bitmap, 0);
@@ -334,7 +353,7 @@ public class FloatingTranslatorService extends Service {
                     String extractedText = visionText.getText();
                     if (extractedText != null && !extractedText.isEmpty()) {
                         latestOcrText = extractedText;
-                        translateText(latestOcrText); // Call Translation
+                        translateText(latestOcrText); // Trigger Translation
                     } else {
                         Toast.makeText(this, "No text found", Toast.LENGTH_SHORT).show();
                     }
@@ -343,9 +362,8 @@ public class FloatingTranslatorService extends Service {
                 .addOnFailureListener(e -> Toast.makeText(this, "OCR Failed", Toast.LENGTH_SHORT).show());
     }
 
-    // RESTORED: Actual Translation Logic
+    // This is your Original Translation method
     private void translateText(final String text) {
-        // Find language codes
         int srcIndex = -1, targetIndex = -1;
         for(int i=0; i<languages.length; i++) {
             if(languages[i].equals(currentSourceLang)) srcIndex = i;
@@ -357,12 +375,12 @@ public class FloatingTranslatorService extends Service {
         final String targetCode = languageCodes[targetIndex];
 
         executor.execute(() -> {
-            // Using TranslateApi (Assuming the class exists in your project)
+            // Assumes TranslateApi exists in your project
             final String result = TranslateApi.translate(srcCode, targetCode, text);
             handler.post(() -> {
                 if (result != null) {
                     latestTranslation = result;
-                    showResultPopup(); // Show the Window
+                    showResultPopup(); // Show the Popup
                 } else {
                     Toast.makeText(FloatingTranslatorService.this, "Translation Failed", Toast.LENGTH_SHORT).show();
                 }
@@ -370,16 +388,14 @@ public class FloatingTranslatorService extends Service {
         });
     }
 
-    // RESTORED: Result Popup Window
+    // This is your Original Popup method
     private void showResultPopup() {
         if (popupView != null) {
             windowManager.removeView(popupView);
         }
         
-        // Inflate the popup layout (using a generic name, adjust if your XML is named differently)
         popupView = LayoutInflater.from(this).inflate(R.layout.layout_popup_result, null);
         
-        // Setup Window Params
         int type = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? 
                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : 
                    WindowManager.LayoutParams.TYPE_PHONE;
@@ -392,21 +408,17 @@ public class FloatingTranslatorService extends Service {
                 PixelFormat.TRANSLUCENT);
         popupParams.gravity = Gravity.CENTER;
 
-        // Populate Text
-        TextView tvSource = popupView.findViewById(R.id.popup_source_text); // Check your IDs
+        TextView tvSource = popupView.findViewById(R.id.popup_source_text); 
         TextView tvTarget = popupView.findViewById(R.id.popup_translated_text);
         
         if (tvSource != null) tvSource.setText(latestOcrText);
         if (tvTarget != null) tvTarget.setText(latestTranslation);
 
-        // Add to Screen
         windowManager.addView(popupView, popupParams);
         
-        // Setup Listeners (Close, Copy, Spinners)
         setupPopupListeners();
         setupLanguageSpinners();
         
-        // Hide bubble while popup is open
         floatingBubbleView.setVisibility(View.GONE);
     }
 
@@ -418,9 +430,7 @@ public class FloatingTranslatorService extends Service {
         }
     }
 
-    // --- UI Listeners (Already preserved) ---
     private void setupPopupListeners() {
-        // ... (Same as before, connecting buttons in popupView) ...
         View backBtn = popupView.findViewById(R.id.popup_back_arrow);
         if(backBtn != null) backBtn.setOnClickListener(v -> hideResultPopup());
         
@@ -434,7 +444,6 @@ public class FloatingTranslatorService extends Service {
         
         View refineBtn = popupView.findViewById(R.id.popup_refine_button);
         if(refineBtn != null) refineBtn.setOnClickListener(v -> {
-             // Gemini Refine Logic
              SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE);
              final String apiKey = prefs.getString(SettingsActivity.KEY_API_KEY, "");
              if (apiKey.isEmpty()) {
@@ -465,7 +474,6 @@ public class FloatingTranslatorService extends Service {
         sourceSpinner.setAdapter(adapter);
         targetSpinner.setAdapter(adapter);
 
-        // Set selections based on currentLang vars
         sourceSpinner.setSelection(Arrays.asList(languages).indexOf(currentSourceLang));
         targetSpinner.setSelection(Arrays.asList(languages).indexOf(currentTargetLang));
 
@@ -477,7 +485,6 @@ public class FloatingTranslatorService extends Service {
                 if (!currentSourceLang.equals(selectedSource) || !currentTargetLang.equals(selectedTarget)) {
                     currentSourceLang = selectedSource;
                     currentTargetLang = selectedTarget;
-                    // Re-translate if language changed
                     translateText(latestOcrText);
                 }
             }
@@ -542,15 +549,14 @@ public class FloatingTranslatorService extends Service {
     }
 
     public void onCropFinished(Rect selectedRect) {
-        // Remove Crop View
         if (cropSelectionView != null) {
             windowManager.removeView(cropSelectionView);
             cropSelectionView = null;
         }
-        // NOTE: We do NOT show floatingBubbleView yet because we are about to show the Popup
         
+        // IMPORTANT: We check mediaProjection here.
         if (mediaProjection != null) {
-            // Normal Translate Mode
+            // Normal Bubble Logic: Just capture once and translate
             isManualCopyMode = false;
             this.currentCropRect = selectedRect;
             performSingleCapture(selectedRect);
@@ -577,6 +583,11 @@ public class FloatingTranslatorService extends Service {
         intent.putExtra("AUTO_REQUEST_PERMISSION", true);
         startActivity(intent);
     }
+
+    // These are required to prevent crash if other classes call them, 
+    // even though we switched to Single Shot logic.
+    public void startBurstCapture() {} 
+    public void stopBurstCapture() {}
 
     @Override
     public void onDestroy() {
