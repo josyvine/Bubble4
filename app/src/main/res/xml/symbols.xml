@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="10%p"
+    android:keyHeight="55dp"
+    android:horizontalGap="0px"
+    android:verticalGap="0px">
+
+    <!-- ROW 1: Numbers (1 to 0) -->
+    <Row>
+        <Key android:codes="49" android:keyLabel="1"/>
+        <Key android:codes="50" android:keyLabel="2"/>
+        <Key android:codes="51" android:keyLabel="3"/>
+        <Key android:codes="52" android:keyLabel="4"/>
+        <Key android:codes="53" android:keyLabel="5"/>
+        <Key android:codes="54" android:keyLabel="6"/>
+        <Key android:codes="55" android:keyLabel="7"/>
+        <Key android:codes="56" android:keyLabel="8"/>
+        <Key android:codes="57" android:keyLabel="9"/>
+        <Key android:codes="48" android:keyLabel="0"/>
+    </Row>
+
+    <!-- ROW 2: Primary Symbols -->
+    <Row>
+        <Key android:codes="64" android:keyLabel="@"/>
+        <Key android:codes="35" android:keyLabel="#"/>
+        <Key android:codes="36" android:keyLabel="$"/>
+        <Key android:codes="37" android:keyLabel="%"/>
+        <Key android:codes="38" android:keyLabel="&amp;"/> <!-- Ampersand -->
+        <Key android:codes="45" android:keyLabel="-"/>     <!-- Dash/Minus -->
+        <Key android:codes="43" android:keyLabel="+"/>     <!-- Plus -->
+        <Key android:codes="40" android:keyLabel="("/>     <!-- Open Paren -->
+        <Key android:codes="41" android:keyLabel=")"/>     <!-- Close Paren -->
+        <Key android:codes="61" android:keyLabel="="/>     <!-- Equals -->
+    </Row>
+
+    <!-- ROW 3: Secondary Symbols + Backspace -->
+    <Row>
+        <Key android:codes="42" android:keyLabel="*"/>     <!-- Asterisk -->
+        <Key android:codes="34" android:keyLabel="&quot;"/> <!-- Quote -->
+        <Key android:codes="39" android:keyLabel="'"/>     <!-- Apostrophe -->
+        <Key android:codes="58" android:keyLabel=":"/>     <!-- Colon -->
+        <Key android:codes="59" android:keyLabel=";"/>     <!-- Semicolon -->
+        <Key android:codes="33" android:keyLabel="!"/>     <!-- Exclamation -->
+        <Key android:codes="63" android:keyLabel="?"/>     <!-- Question -->
+        
+        <!-- UNDERSCORE (Takes up 1.5 width) -->
+        <Key android:codes="95" android:keyLabel="_" android:keyWidth="15%p"/>
+        
+        <!-- BACKSPACE (Icon - Takes up 1.5 width) -->
+        <Key android:codes="-5" 
+             android:keyIcon="@drawable/ic_key_backspace" 
+             android:keyWidth="15%p" 
+             android:isRepeatable="true"/>
+    </Row>
+
+    <!-- ROW 4: Navigation & Spacing -->
+    <Row>
+        <!-- ABC SWITCH (Return to QWERTY) -->
+        <Key android:codes="-2" 
+             android:keyLabel="ABC" 
+             android:keyWidth="15%p"/>
+        
+        <!-- COMMA -->
+        <Key android:codes="44" android:keyLabel="," android:keyWidth="10%p"/>
+        
+        <!-- SLASH -->
+        <Key android:codes="47" android:keyLabel="/" android:keyWidth="10%p"/>
+        
+        <!-- SPACE BAR -->
+        <Key android:codes="32" 
+             android:keyIcon="@drawable/ic_key_space" 
+             android:keyWidth="35%p"/>
+        
+        <!-- PERIOD -->
+        <Key android:codes="46" android:keyLabel="." android:keyWidth="10%p"/>
+        
+        <!-- ENTER (Icon) -->
+        <Key android:codes="-4" 
+             android:keyIcon="@drawable/ic_key_enter" 
+             android:keyWidth="20%p"/>
+    </Row>
+</Keyboard>
