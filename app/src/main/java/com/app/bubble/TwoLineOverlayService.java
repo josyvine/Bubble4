@@ -6,40 +6,30 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.IBinder;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 public class TwoLineOverlayService extends Service {
 
     private WindowManager windowManager;
+    private View overlayView;
+    private WindowManager.LayoutParams params;
 
-    // Window 1: The Lines (Full Screen)
-    private View linesView;
-    private WindowManager.LayoutParams linesParams;
+    // Views from the layout
     private View lineTop, lineBottom;
-    private ImageView handleTop, handleBottom;
-    private TextView helperText;
-
-    // Window 2: The Controls (Bottom Only)
-    private View controlsView;
-    private WindowManager.LayoutParams controlsParams;
-    private Button btnAdd, btnDone;
-    private ImageButton btnClose;
-
-    private int screenHeight;
-
-    // For Touch Logic
+    private View linesContainer;
+    private View handleTop, handleBottom;
+    
+    // Logic for dragging
     private View activeDragView = null;
     private View activeHandleView = null;
     private float initialTouchY, initialViewY;
+    private int screenHeight;
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -49,174 +39,169 @@ public class TwoLineOverlayService extends Service {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         screenHeight = getResources().getDisplayMetrics().heightPixels;
-
-        setupWindows();
+        
+        setupOverlay();
     }
 
-    private void setupWindows() {
+    private void setupOverlay() {
+        // 1. Inflate the new layout
+        LayoutInflater inflater = LayoutInflater.from(this);
+        overlayView = inflater.inflate(R.layout.layout_two_line_overlay, null);
+
+        // 2. Determine Window Type based on Android Version
         int type = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
 
-        LayoutInflater inflater = LayoutInflater.from(this);
-
-        // --- SETUP LINES WINDOW (Full Screen) ---
-        // This window handles the lines and the touch gestures to move them.
-        linesView = inflater.inflate(R.layout.layout_two_line_overlay, null);
-        
-        // Hide the control buttons in this layer (they are in the controls window)
-        linesView.findViewById(R.id.btn_add).setVisibility(View.GONE);
-        linesView.findViewById(R.id.btn_done).setVisibility(View.GONE);
-        linesView.findViewById(R.id.btn_close).setVisibility(View.GONE);
-        
-        lineTop = linesView.findViewById(R.id.line_top);
-        handleTop = linesView.findViewById(R.id.handle_top);
-        lineBottom = linesView.findViewById(R.id.line_bottom);
-        handleBottom = linesView.findViewById(R.id.handle_bottom);
-        helperText = linesView.findViewById(R.id.helper_text);
-
-        linesParams = new WindowManager.LayoutParams(
+        // 3. Set Window Parameters
+        // IMPORTANT: FLAG_SECURE is REMOVED so we can take screenshots.
+        // FLAG_NOT_FOCUSABLE: Ensures system keys (Back, Home) still work.
+        // FLAG_LAYOUT_IN_SCREEN: Allows the overlay to draw over the status bar.
+        params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 type,
-                // FIX: REMOVED FLAG_SECURE (Fixes Black Screen)
-                // FLAG_NOT_FOCUSABLE allow keys to go to app behind
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | 
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, 
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
         );
-        windowManager.addView(linesView, linesParams);
 
-        // --- SETUP CONTROLS WINDOW (Bottom) ---
-        // This window holds the buttons. It is small so it doesn't block touches.
-        controlsView = inflater.inflate(R.layout.layout_two_line_overlay, null);
-        
-        // Hide the lines in this layer
-        controlsView.findViewById(R.id.line_top).setVisibility(View.GONE);
-        controlsView.findViewById(R.id.handle_top).setVisibility(View.GONE);
-        controlsView.findViewById(R.id.line_bottom).setVisibility(View.GONE);
-        controlsView.findViewById(R.id.handle_bottom).setVisibility(View.GONE);
-        controlsView.findViewById(R.id.helper_text).setVisibility(View.GONE);
+        // 4. Add View to WindowManager
+        windowManager.addView(overlayView, params);
 
-        btnAdd = controlsView.findViewById(R.id.btn_add);
-        btnDone = controlsView.findViewById(R.id.btn_done);
-        btnClose = controlsView.findViewById(R.id.btn_close);
+        // 5. Initialize Views
+        lineTop = overlayView.findViewById(R.id.line_top);
+        lineBottom = overlayView.findViewById(R.id.line_bottom);
+        linesContainer = overlayView.findViewById(R.id.lines_container);
+        handleTop = overlayView.findViewById(R.id.handle_top);
+        handleBottom = overlayView.findViewById(R.id.handle_bottom);
 
-        controlsParams = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                type,
-                // FIX: REMOVED FLAG_SECURE
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, 
-                PixelFormat.TRANSLUCENT
-        );
-        controlsParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        controlsParams.y = 50; // Margin from bottom
-        windowManager.addView(controlsView, controlsParams);
+        // 6. Setup Buttons
+        ImageView btnClose = overlayView.findViewById(R.id.btn_close_overlay);
+        Button btnAdd = overlayView.findViewById(R.id.btn_add_page);
+        Button btnDone = overlayView.findViewById(R.id.btn_done);
 
-        setupTouchListeners();
-        setupControlLogic();
-    }
-
-    private void setupControlLogic() {
-        // CLOSE BUTTON
+        // Close Action
         btnClose.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Just close everything
-                stopSelf();
+                stopSelf(); // Destroys the service and removes view
             }
         });
 
-        // ADD BUTTON (Capture Current Screen)
+        // Add Page Action (Manual Accumulator)
         btnAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                triggerCapture("CAPTURE");
+                sendIntentToService("ACTION_ADD_PAGE");
             }
         });
 
-        // DONE BUTTON (Finish and Copy)
+        // Done Action (Finish and Copy)
         btnDone.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                triggerCapture("FINISH");
-                stopSelf(); // Close overlay after clicking Done
+                sendIntentToService("ACTION_DONE");
+                stopSelf(); // Close the overlay automatically
             }
         });
+
+        // 7. Setup Touch Listener for Dragging Lines
+        setupTouchListener();
     }
 
-    private void triggerCapture(String command) {
-        // Calculate the current positions of the Green and Red lines
-        int[] topLocation = new int[2];
-        lineTop.getLocationOnScreen(topLocation);
-        int topY = topLocation[1];
+    /**
+     * Sends the current coordinates of the Green and Red lines to the main service.
+     */
+    private void sendIntentToService(String action) {
+        // Get absolute Y coordinates on screen
+        int[] topLoc = new int[2];
+        lineTop.getLocationOnScreen(topLoc);
+        
+        int[] botLoc = new int[2];
+        lineBottom.getLocationOnScreen(botLoc);
 
-        int[] bottomLocation = new int[2];
-        lineBottom.getLocationOnScreen(bottomLocation);
-        int bottomY = bottomLocation[1];
+        int topY = topLoc[1];
+        int botY = botLoc[1];
 
-        if (topY >= bottomY) {
-            Toast.makeText(this, "Green line must be above Red line", Toast.LENGTH_SHORT).show();
+        // Validation: Top must be above Bottom
+        if (topY >= botY) {
+            Toast.makeText(this, "Green Line must be above Red Line!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        Rect selectionRect = new Rect(0, topY, getResources().getDisplayMetrics().widthPixels, bottomY);
+        // Create the Rect representing the area to crop
+        Rect cropRect = new Rect(0, topY, getResources().getDisplayMetrics().widthPixels, botY);
 
-        // Send Command to Main Service
+        // Send Intent to FloatingTranslatorService
         Intent intent = new Intent(this, FloatingTranslatorService.class);
-        intent.putExtra("RECT", selectionRect);
-        intent.putExtra("COMMAND", command); // "CAPTURE" or "FINISH"
-        startService(intent);
+        intent.setAction(action);
+        intent.putExtra("RECT", cropRect);
         
-        if (command.equals("CAPTURE")) {
-            Toast.makeText(this, "Page Added. Scroll & Click Add again.", Toast.LENGTH_SHORT).show();
-        }
+        // Use startService to deliver the command
+        startService(intent);
     }
 
-    private void setupTouchListeners() {
-        // Allow dragging the lines anywhere on the screen
-        linesView.setOnTouchListener(new View.OnTouchListener() {
+    /**
+     * Handles the logic for dragging the Green and Red lines.
+     */
+    private void setupTouchListener() {
+        linesContainer.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 float rawY = event.getRawY();
-                int threshold = 150; // Touch sensitivity
+                // How close (in pixels) the finger needs to be to grab a line
+                int threshold = 150; 
 
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        float distTop = Math.abs(rawY - getCenterY(lineTop));
-                        float distBottom = Math.abs(rawY - getCenterY(lineBottom));
+                        // Calculate distances to both lines
+                        int[] topLoc = new int[2]; 
+                        lineTop.getLocationOnScreen(topLoc);
+                        
+                        int[] botLoc = new int[2]; 
+                        lineBottom.getLocationOnScreen(botLoc);
+                        
+                        float distTop = Math.abs(rawY - topLoc[1]);
+                        float distBot = Math.abs(rawY - botLoc[1]);
 
-                        // Check which line is closer
-                        if (distTop < threshold && distTop < distBottom) {
+                        // Determine which line is closer
+                        if (distTop < threshold && distTop < distBot) {
+                            // Grab Top Line
                             activeDragView = lineTop;
                             activeHandleView = handleTop;
                             initialTouchY = rawY;
                             initialViewY = lineTop.getY();
                             return true;
-                        } else if (distBottom < threshold) {
+                        } else if (distBot < threshold) {
+                            // Grab Bottom Line
                             activeDragView = lineBottom;
                             activeHandleView = handleBottom;
                             initialTouchY = rawY;
                             initialViewY = lineBottom.getY();
                             return true;
                         }
-                        return false; // Pass touch if not near lines (allows some interaction behind)
+                        return false;
 
                     case MotionEvent.ACTION_MOVE:
                         if (activeDragView != null) {
-                            float dY = rawY - initialTouchY;
-                            float newY = initialViewY + dY;
-
-                            // Keep lines within screen bounds
+                            // Calculate movement
+                            float diff = rawY - initialTouchY;
+                            float newY = initialViewY + diff;
+                            
+                            // Prevent dragging off-screen (Bounds Check)
                             if (newY < 0) newY = 0;
-                            if (newY > screenHeight - activeDragView.getHeight()) newY = screenHeight - activeDragView.getHeight();
+                            // Keep it above the bottom control bar (approx 100dp)
+                            if (newY > screenHeight - 200) newY = screenHeight - 200;
 
+                            // Update Position
                             activeDragView.setY(newY);
                             
-                            // Move handle along with the line
+                            // Update the Handle Position (Sync with line)
+                            // The handle is centered on the line, but setY sets the top edge.
+                            // We adjust slightly to keep visual alignment.
                             if (activeHandleView != null) {
-                                activeHandleView.setY(newY - 40); // Offset for handle visibility
+                                activeHandleView.setY(newY - (activeHandleView.getHeight() / 2) + (activeDragView.getHeight() / 2));
                             }
                             return true;
                         }
@@ -224,6 +209,7 @@ public class TwoLineOverlayService extends Service {
 
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
+                        // Release the line
                         activeDragView = null;
                         activeHandleView = null;
                         return true;
@@ -233,16 +219,11 @@ public class TwoLineOverlayService extends Service {
         });
     }
 
-    private float getCenterY(View view) {
-        int[] location = new int[2];
-        view.getLocationOnScreen(location);
-        return location[1] + (view.getHeight() / 2f);
-    }
-
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (linesView != null) windowManager.removeView(linesView);
-        if (controlsView != null) windowManager.removeView(controlsView);
+        if (overlayView != null) {
+            windowManager.removeView(overlayView);
+        }
     }
 }
