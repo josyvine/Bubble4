@@ -10,10 +10,15 @@ import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.List;
 
 /**
  * The core Service handling the Modern Keyboard logic.
@@ -27,6 +32,7 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
     private View candidateView;
     private LinearLayout candidateContainer;
     private View emojiPaletteView;
+    private ImageButton btnClipboard; // New Clipboard Button
 
     // Keyboards
     private Keyboard keyboardQwerty;
@@ -35,6 +41,8 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
     // State
     private boolean isCaps = false;
     private boolean isEmojiVisible = false;
+    private boolean isClipboardVisible = false;
+    private StringBuilder currentWord = new StringBuilder(); // Track typing for predictions
 
     // Long Press Logic for Space Key (Switching Keyboards)
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
@@ -64,6 +72,18 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
         // 2. Add Candidate View (Predictions) - Top
         candidateView = inflater.inflate(R.layout.candidate_view, null);
         candidateContainer = candidateView.findViewById(R.id.candidate_container);
+        
+        // Setup Clipboard Button (Issue #6)
+        btnClipboard = candidateView.findViewById(R.id.btn_clipboard);
+        if (btnClipboard != null) {
+            btnClipboard.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleClipboardView();
+                }
+            });
+        }
+        
         mainLayout.addView(candidateView);
 
         // 3. Add Keyboard View - Middle
@@ -144,6 +164,11 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
                 break;
 
             case Keyboard.KEYCODE_DONE: // -4 (Enter)
+                // Learn the word before sending enter (Issue #2)
+                PredictionEngine.getInstance(this).learnWord(currentWord.toString());
+                currentWord.setLength(0); // Reset
+                updateCandidates("");
+                
                 ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
                 break;
 
@@ -169,9 +194,13 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
                 break;
 
             case 32: // Space
-                // CRITICAL FIX: Only type space if we didn't just trigger the Long Press menu
+                // FIX Issue #3: Only type space if we didn't just trigger the Long Press menu
                 if (!isSpaceLongPressed) {
                     ic.commitText(" ", 1);
+                    // Learn the word (Issue #2)
+                    PredictionEngine.getInstance(this).learnWord(currentWord.toString());
+                    currentWord.setLength(0); // Reset word tracking
+                    updateCandidates("");
                 }
                 break;
 
@@ -181,7 +210,15 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
                     code = Character.toUpperCase(code);
                 }
                 ic.commitText(String.valueOf(code), 1);
-                updateCandidates(String.valueOf(code));
+                
+                // Track typing for prediction (Issue #2)
+                if (Character.isLetterOrDigit(code)) {
+                    currentWord.append(code);
+                    updateCandidates(currentWord.toString());
+                } else {
+                    currentWord.setLength(0);
+                    updateCandidates("");
+                }
         }
     }
 
@@ -189,7 +226,14 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.deleteSurroundingText(1, 0);
-            updateCandidates("");
+            
+            // Update prediction logic
+            if (currentWord.length() > 0) {
+                currentWord.deleteCharAt(currentWord.length() - 1);
+                updateCandidates(currentWord.toString());
+            } else {
+                updateCandidates("");
+            }
         }
     }
 
@@ -203,6 +247,9 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
             kv.setVisibility(View.GONE);
             candidateView.setVisibility(View.GONE);
             emojiPaletteView.setVisibility(View.VISIBLE);
+            
+            // FIX Issue #5: Ensure layout params match keyboard height (approx 250dp)
+            // This is also handled in XML, but we reset visibility here.
             isEmojiVisible = true;
         } else {
             // Show Keyboard, Hide Emojis
@@ -210,6 +257,51 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
             kv.setVisibility(View.VISIBLE);
             candidateView.setVisibility(View.VISIBLE);
             isEmojiVisible = false;
+        }
+    }
+
+    // FIX Issue #6: Clipboard View Toggle
+    private void toggleClipboardView() {
+        if (candidateContainer == null) return;
+        
+        if (!isClipboardVisible) {
+            // Show Clipboard History
+            isClipboardVisible = true;
+            candidateContainer.removeAllViews();
+            
+            List<String> history = ClipboardManagerHelper.getInstance(this).getHistory();
+            
+            if (history.isEmpty()) {
+                TextView tv = new TextView(this);
+                tv.setText("Clipboard Empty");
+                tv.setPadding(20, 10, 20, 10);
+                candidateContainer.addView(tv);
+            } else {
+                for (final String clip : history) {
+                    TextView tv = new TextView(this);
+                    // Show truncated text
+                    String label = clip.length() > 20 ? clip.substring(0, 20) + "..." : clip;
+                    tv.setText(label);
+                    tv.setTextSize(16);
+                    tv.setPadding(30, 15, 30, 15);
+                    tv.setBackgroundResource(android.R.drawable.list_selector_background);
+                    
+                    tv.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            getCurrentInputConnection().commitText(clip, 1);
+                            // Optional: switch back to predictions after paste
+                            isClipboardVisible = false;
+                            updateCandidates(currentWord.toString());
+                        }
+                    });
+                    candidateContainer.addView(tv);
+                }
+            }
+        } else {
+            // Revert to Predictions
+            isClipboardVisible = false;
+            updateCandidates(currentWord.toString());
         }
     }
 
@@ -229,7 +321,7 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
     @Override
     public void onRelease(int primaryCode) {
         if (primaryCode == 32) {
-            // Cancel the timer so the menu doesn't pop up if we tapped quickly
+            // FIX Issue #3: Cancel the timer immediately on release
             longPressHandler.removeCallbacks(spaceLongPressRunnable);
         }
     }
@@ -238,18 +330,17 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
     // PREDICTION (CANDIDATE VIEW)
     // =========================================================
 
-    private void updateCandidates(String lastChar) {
-        // Simple prediction simulation
-        if (candidateContainer == null) return;
+    private void updateCandidates(String wordBeingTyped) {
+        if (candidateContainer == null || isClipboardVisible) return;
+        
         candidateContainer.removeAllViews();
         
-        String[] suggestions;
-        if (lastChar.equals("t")) {
-            suggestions = new String[]{"the", "that", "this"};
-        } else if (lastChar.equals("a")) {
-            suggestions = new String[]{"and", "are", "about"};
-        } else {
-             suggestions = new String[]{"I", "You", "The"};
+        // FIX Issue #2: Use Prediction Engine
+        List<String> suggestions = PredictionEngine.getInstance(this).getSuggestions(wordBeingTyped);
+
+        // If no suggestions (or empty word), maybe show punctuation or common words
+        if (suggestions.isEmpty() && wordBeingTyped.isEmpty()) {
+            suggestions = PredictionEngine.getInstance(this).getSuggestions(""); // Get top frequent words
         }
 
         for (final String word : suggestions) {
@@ -263,6 +354,10 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
                 @Override
                 public void onClick(View v) {
                     getCurrentInputConnection().commitText(word + " ", 1);
+                    // Learn this usage (boost frequency)
+                    PredictionEngine.getInstance(BubbleKeyboardService.this).learnWord(word);
+                    currentWord.setLength(0);
+                    updateCandidates("");
                 }
             });
             
