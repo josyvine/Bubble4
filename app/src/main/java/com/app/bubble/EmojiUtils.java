@@ -2,12 +2,14 @@ package com.app.bubble;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.GridView;
 import android.widget.TextView;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class EmojiUtils {
 
@@ -32,7 +34,7 @@ public class EmojiUtils {
         "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗",
         "🐴", "🦄", "🐝", "🐛", "🦋", "🐌", "🐞", "🐜", "🦟", "🦗", "🕷", "🕸", "🐢", "🐍", "🦎", "🦖",
         "🦕", "🐙", "🦑", "🦐", "🦞", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆",
-        "🦓", "🦍", "🦧", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🐃", "🐂", "🐄", "🐎", "🐖", "🐏",
+        "🦓", "🦍", "🦧", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🐃", "🐂", "🐄", "🐖", "🐏",
         "🐑", "🦙", "🐐", "🦌", "🐕", "🐩", "🦮", "🐕‍🦺", "🐈", "🐓", "🦃", "🦚", "🦜", "🦢", "🦩", "🕊",
         "🐇", "🦝", "🦨", "🦡", "🦦", "🦥", "🐁", "🐀", "🐿", "🦔", "🌵", "🌲", "🌳", "🌴", "🌱", "🌿",
         "☘️", "🍀", "🎍", "🎋", "🍃", "🍂", "🍁", "🍄", "🐚", "🌾", "💐", "🌷", "🌹", "🥀", "🌺", "🌸",
@@ -62,45 +64,93 @@ public class EmojiUtils {
     }
 
     /**
-     * Sets up the Emoji GridView with the adapter and click listeners.
+     * Sets up the Emoji list with the adapter and click listeners.
+     * Uses RecyclerView for Horizontal Scrolling (Issue #5).
      * 
      * @param context The application context
      * @param rootView The root view of the emoji palette layout
      * @param listener The callback to handle emoji selection
      */
     public static void setupEmojiGrid(final Context context, View rootView, final EmojiListener listener) {
-        GridView grid = rootView.findViewById(R.id.emoji_grid);
+        // Find the view by ID (Must match the ID in layout_emoji_palette.xml)
+        // We cast to RecyclerView because we will update the XML to use RecyclerView
+        RecyclerView recyclerView = rootView.findViewById(R.id.emoji_grid);
         
-        // Setup Category Tabs (Simple scroll to position logic could be added here later)
-        // For now, these buttons are placeholders or can just reset the view.
+        if (recyclerView == null) return;
+
+        // Setup Layout Manager: 4 Rows, Horizontal Scrolling
+        // spanCount = 4 rows
+        // orientation = HORIZONTAL
+        // reverseLayout = false
+        GridLayoutManager layoutManager = new GridLayoutManager(context, 4, GridLayoutManager.HORIZONTAL, false);
+        recyclerView.setLayoutManager(layoutManager);
+
+        // Set Adapter
+        EmojiAdapter adapter = new EmojiAdapter(EMOJIS, listener);
+        recyclerView.setAdapter(adapter);
+
+        // Setup Category Tabs (Placeholders for now)
         Button btnSmileys = rootView.findViewById(R.id.tab_smileys);
-        Button btnAnimals = rootView.findViewById(R.id.tab_animals);
-        // Add listeners if needed for tabs
-        
-        // Create the Adapter
-        // We use a custom getView logic inside a standard ArrayAdapter to ensure size/centering
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, EMOJIS) {
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                // Use the standard text view but customize it slightly for grid display
-                TextView tv = (TextView) super.getView(position, convertView, parent);
-                tv.setTextSize(28); // Make emojis large and visible
-                tv.setGravity(android.view.Gravity.CENTER);
-                tv.setTextColor(Color.BLACK); // Ensure visibility
-                tv.setBackgroundColor(Color.TRANSPARENT);
-                tv.setPadding(0, 10, 0, 10);
-                return tv;
-            }
-        };
+        if (btnSmileys != null) {
+            btnSmileys.setOnClickListener(v -> {
+                // Scroll to start
+                recyclerView.scrollToPosition(0);
+            });
+        }
+    }
 
-        grid.setAdapter(adapter);
+    /**
+     * Inner Adapter Class for the RecyclerView
+     */
+    private static class EmojiAdapter extends RecyclerView.Adapter<EmojiAdapter.EmojiViewHolder> {
 
-        // Handle Click
-        grid.setOnItemClickListener((parent, view, position, id) -> {
-            String selectedEmoji = EMOJIS[position];
-            if (selectedEmoji != null) { 
-                listener.onEmojiClick(selectedEmoji);
+        private final String[] data;
+        private final EmojiListener listener;
+
+        public EmojiAdapter(String[] data, EmojiListener listener) {
+            this.data = data;
+            this.listener = listener;
+        }
+
+        @NonNull
+        @Override
+        public EmojiViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            // Programmatically create the TextView for each Emoji to avoid extra XML inflation overhead
+            TextView tv = new TextView(parent.getContext());
+            tv.setLayoutParams(new ViewGroup.LayoutParams(140, 140)); // Fixed square size for easy tapping
+            tv.setTextSize(32); // Large emoji size
+            tv.setGravity(Gravity.CENTER);
+            tv.setTextColor(Color.BLACK);
+            return new EmojiViewHolder(tv);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull EmojiViewHolder holder, int position) {
+            final String emoji = data[position];
+            holder.textView.setText(emoji);
+            
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (listener != null) {
+                        listener.onEmojiClick(emoji);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return data.length;
+        }
+
+        static class EmojiViewHolder extends RecyclerView.ViewHolder {
+            TextView textView;
+
+            EmojiViewHolder(View itemView) {
+                super(itemView);
+                this.textView = (TextView) itemView;
             }
-        });
+        }
     }
 }
