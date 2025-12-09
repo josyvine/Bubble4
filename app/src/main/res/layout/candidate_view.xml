@@ -7,12 +7,12 @@
     android:gravity="center_vertical">
 
     <!-- CLIPBOARD BUTTON (Fixed on Left) -->
-    <!-- This handles Issue #6: Keyboard needs a clipboard icon -->
+    <!-- Updated src to use local @drawable/ic_paste to fix build error -->
     <ImageButton
         android:id="@+id/btn_clipboard"
         android:layout_width="45dp"
         android:layout_height="match_parent"
-        android:src="@android:drawable/ic_menu_paste_holo_light"
+        android:src="@drawable/ic_paste"
         android:background="?android:attr/selectableItemBackground"
         android:scaleType="centerInside"
         android:padding="10dp"
