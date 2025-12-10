@@ -41,6 +41,9 @@ dependencies {
     // FIX: Added RecyclerView library.
     // This is REQUIRED for the new Horizontal Emoji Slider in EmojiUtils.java
     implementation 'androidx.recyclerview:recyclerview:1.1.0'
+    
+    // FIX: Added Emoji2 Library to fix "Box" (☒) characters
+    implementation 'androidx.emoji2:emoji2-views:1.4.0'
 
     // FIX: REPLACED Google Vision with ML Kit for better accuracy (dots/symbols)
     implementation 'com.google.mlkit:text-recognition:16.0.0'
