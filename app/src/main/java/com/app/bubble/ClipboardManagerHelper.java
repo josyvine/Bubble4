@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Manages clipboard history for the custom keyboard.
  * Stores the last 10 copied items.
- * UPDATED: Learns vocabulary from copied text.
+ * UPDATED: Supports Delete and Undo operations.
  */
 public class ClipboardManagerHelper {
 
@@ -21,7 +21,7 @@ public class ClipboardManagerHelper {
     private ClipboardManager systemClipboard;
     private SharedPreferences prefs;
     private List<String> clipHistory;
-    private Context mContext; // Stored to access PredictionEngine
+    private Context mContext; 
     
     private static final String PREFS_NAME = "BubbleClipboardPrefs";
     private static final String KEY_HISTORY = "ClipHistoryString";
@@ -50,9 +50,11 @@ public class ClipboardManagerHelper {
      */
     public void syncWithSystemClipboard() {
         if (systemClipboard != null && systemClipboard.hasPrimaryClip()) {
-            ClipData.Item item = systemClipboard.getPrimaryClip().getItemAt(0);
-            if (item != null && item.getText() != null) {
-                addClip(item.getText().toString());
+            if (systemClipboard.getPrimaryClip().getItemCount() > 0) {
+                ClipData.Item item = systemClipboard.getPrimaryClip().getItemAt(0);
+                if (item != null && item.getText() != null) {
+                    addClip(item.getText().toString());
+                }
             }
         }
     }
@@ -60,7 +62,7 @@ public class ClipboardManagerHelper {
     /**
      * Adds a text to the history (Top of the list).
      * Removes duplicates and keeps size limited.
-     * NEW: Feeds the words to PredictionEngine to learn them.
+     * Feeds the words to PredictionEngine to learn them.
      */
     public void addClip(String text) {
         if (text == null || text.trim().isEmpty()) return;
@@ -77,15 +79,12 @@ public class ClipboardManagerHelper {
 
         saveHistory();
 
-        // 2. FIX Issue #3: Learn Vocabulary from Clipboard
-        // Split sentence into words by whitespace
+        // 2. Learn Vocabulary from Clipboard
         String[] words = text.split("\\s+");
         PredictionEngine engine = PredictionEngine.getInstance(mContext);
         
         for (String word : words) {
-            // Only learn valid words length > 1 to avoid garbage
             if (word.length() > 1) {
-                // Remove punctuation like "hello." -> "hello"
                 String cleanWord = word.replaceAll("[^a-zA-Z0-9]", "");
                 if (!cleanWord.isEmpty()) {
                     engine.learnWord(cleanWord);
@@ -94,8 +93,29 @@ public class ClipboardManagerHelper {
         }
     }
 
+    /**
+     * NEW: Permanently delete an item (Swipe-to-Delete)
+     */
+    public void deleteItem(String text) {
+        if (clipHistory.contains(text)) {
+            clipHistory.remove(text);
+            saveHistory();
+        }
+    }
+
+    /**
+     * NEW: Restore an item (Undo Action)
+     */
+    public void restoreItem(String text, int position) {
+        if (position < 0) position = 0;
+        if (position > clipHistory.size()) position = clipHistory.size();
+        
+        clipHistory.add(position, text);
+        saveHistory();
+    }
+
     public List<String> getHistory() {
-        syncWithSystemClipboard(); // Ensure we have the very latest
+        syncWithSystemClipboard(); 
         return new ArrayList<>(clipHistory);
     }
 
