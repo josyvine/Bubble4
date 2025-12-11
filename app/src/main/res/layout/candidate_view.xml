@@ -28,8 +28,7 @@
         android:padding="10dp"
         android:contentDescription="Switch Keyboard" />
 
-    <!-- TRANSLATE BUTTON (New) -->
-    <!-- This button triggers the in-keyboard translation panel -->
+    <!-- TRANSLATE BUTTON -->
     <ImageButton
         android:id="@+id/btn_translate"
         android:layout_width="45dp"
@@ -39,6 +38,30 @@
         android:scaleType="centerInside"
         android:padding="10dp"
         android:contentDescription="Translate" />
+
+    <!-- BUBBLE LAUNCHER BUTTON (New) -->
+    <!-- Launches/Shows the Floating Bubble if hidden -->
+    <ImageButton
+        android:id="@+id/btn_bubble_launcher"
+        android:layout_width="45dp"
+        android:layout_height="match_parent"
+        android:src="@drawable/ic_bubble_launcher"
+        android:background="?android:attr/selectableItemBackground"
+        android:scaleType="centerInside"
+        android:padding="10dp"
+        android:contentDescription="Show Bubble" />
+
+    <!-- OCR COPY BUTTON (New) -->
+    <!-- Triggers Blue Box Selection -> Copies text directly (No Translation) -->
+    <ImageButton
+        android:id="@+id/btn_ocr_copy"
+        android:layout_width="45dp"
+        android:layout_height="match_parent"
+        android:src="@drawable/ic_ocr_copy"
+        android:background="?android:attr/selectableItemBackground"
+        android:scaleType="centerInside"
+        android:padding="10dp"
+        android:contentDescription="OCR Copy" />
 
     <!-- Vertical Separator Line -->
     <View
