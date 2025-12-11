@@ -92,6 +92,9 @@ public class FloatingTranslatorService extends Service {
     // Manual Copy Accumulator
     private StringBuilder globalTextAccumulator = new StringBuilder();
 
+    // New Flag for OCR Copy Only Mode
+    private boolean isCopyOnlyMode = false;
+
     // Languages
     private String[] languages = {"English", "Spanish", "French", "German", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Malayalam"};
     private String[] languageCodes = {"en", "es", "fr", "de", "hi", "bn", "mr", "te", "ta", "ml"};
@@ -145,6 +148,26 @@ public class FloatingTranslatorService extends Service {
             // FIX for Issue #1: Handle Exit Action from Notification
             if ("ACTION_EXIT".equals(action)) {
                 stopSelf();
+                return START_NOT_STICKY;
+            }
+
+            // NEW: Handle Bubble Launcher (Show Bubble if hidden)
+            if ("ACTION_SHOW_BUBBLE".equals(action)) {
+                if (floatingBubbleView != null) {
+                    floatingBubbleView.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, "Bubble Visible", Toast.LENGTH_SHORT).show();
+                }
+                return START_NOT_STICKY;
+            }
+
+            // NEW: Handle Copy Only Mode (From Keyboard)
+            if ("ACTION_TRIGGER_COPY_ONLY".equals(action)) {
+                if (mediaProjection != null) {
+                    isCopyOnlyMode = true;
+                    showCropSelectionTool();
+                } else {
+                    requestPermissionRestart();
+                }
                 return START_NOT_STICKY;
             }
 
@@ -293,14 +316,33 @@ public class FloatingTranslatorService extends Service {
                 public void onSuccess(Text visionText) {
                     latestOcrText = visionText.getText();
                     if (latestOcrText != null && !latestOcrText.isEmpty()) {
-                        // GO TO TRANSLATION
-                        translateText(latestOcrText);
+                        
+                        // NEW: Check for Copy Only Mode
+                        if (isCopyOnlyMode) {
+                            // Copy to Clipboard directly without translation
+                            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                            if (clipboard != null) {
+                                ClipData clip = ClipData.newPlainText("OCR Copy", latestOcrText);
+                                clipboard.setPrimaryClip(clip);
+                                Toast.makeText(FloatingTranslatorService.this, "Text Copied!", Toast.LENGTH_SHORT).show();
+                            }
+                            // Reset Flag
+                            isCopyOnlyMode = false;
+                        } else {
+                            // Normal Flow: Translate
+                            translateText(latestOcrText);
+                        }
+                        
                     } else {
                         Toast.makeText(FloatingTranslatorService.this, "No text found", Toast.LENGTH_SHORT).show();
+                        isCopyOnlyMode = false; // Reset even on fail
                     }
                 }
             })
-            .addOnFailureListener(e -> Toast.makeText(FloatingTranslatorService.this, "OCR Failed", Toast.LENGTH_SHORT).show());
+            .addOnFailureListener(e -> {
+                Toast.makeText(FloatingTranslatorService.this, "OCR Failed", Toast.LENGTH_SHORT).show();
+                isCopyOnlyMode = false; // Reset
+            });
     }
 
     private void translateText(final String text) {
