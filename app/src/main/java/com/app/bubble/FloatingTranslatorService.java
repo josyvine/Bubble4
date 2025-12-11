@@ -152,8 +152,12 @@ public class FloatingTranslatorService extends Service {
             }
 
             // NEW: Handle Bubble Launcher (Show Bubble if hidden)
+            // FIX: Reset position to top (y=100) so it is not hidden behind the keyboard
             if ("ACTION_SHOW_BUBBLE".equals(action)) {
                 if (floatingBubbleView != null) {
+                    bubbleParams.x = 0;
+                    bubbleParams.y = 100; // Force move to top
+                    windowManager.updateViewLayout(floatingBubbleView, bubbleParams);
                     floatingBubbleView.setVisibility(View.VISIBLE);
                     Toast.makeText(this, "Bubble Visible", Toast.LENGTH_SHORT).show();
                 }
