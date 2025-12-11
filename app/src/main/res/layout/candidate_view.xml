@@ -17,8 +17,7 @@
         android:padding="10dp"
         android:contentDescription="Clipboard History" />
 
-    <!-- KEYBOARD SWITCHER BUTTON (New) -->
-    <!-- Fixes the Spacebar long-press issue by providing a dedicated button -->
+    <!-- KEYBOARD SWITCHER BUTTON -->
     <ImageButton
         android:id="@+id/btn_keyboard_switch"
         android:layout_width="45dp"
@@ -28,6 +27,18 @@
         android:scaleType="centerInside"
         android:padding="10dp"
         android:contentDescription="Switch Keyboard" />
+
+    <!-- TRANSLATE BUTTON (New) -->
+    <!-- This button triggers the in-keyboard translation panel -->
+    <ImageButton
+        android:id="@+id/btn_translate"
+        android:layout_width="45dp"
+        android:layout_height="match_parent"
+        android:src="@drawable/ic_translate"
+        android:background="?android:attr/selectableItemBackground"
+        android:scaleType="centerInside"
+        android:padding="10dp"
+        android:contentDescription="Translate" />
 
     <!-- Vertical Separator Line -->
     <View
