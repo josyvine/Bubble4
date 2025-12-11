@@ -22,7 +22,7 @@ import java.util.List;
 
 /**
  * The core Service handling the Modern Keyboard logic.
- * Manages Switching layers, Predictions, Emoji interactions, Professional Clipboard, and Translation.
+ * Manages Switching layers, Predictions, Emoji interactions, Professional Clipboard, Translation, and OCR Tools.
  */
 public class BubbleKeyboardService extends InputMethodService implements KeyboardView.OnKeyboardActionListener {
 
@@ -47,6 +47,8 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
     private ImageButton btnClipboard;
     private ImageButton btnKeyboardSwitch;
     private ImageButton btnTranslate;
+    private ImageButton btnBubbleLauncher; // New
+    private ImageButton btnOcrCopy;       // New
 
     // Keyboards
     private Keyboard keyboardQwerty;
@@ -82,6 +84,7 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
         LayoutInflater inflater = getLayoutInflater();
 
         // 2. Add Candidate View (Predictions + Toolbar)
+        // FIX: Use 'mainLayout, false' to respect XML sizing
         candidateView = inflater.inflate(R.layout.candidate_view, mainLayout, false);
         candidateContainer = candidateView.findViewById(R.id.candidate_container);
         
@@ -194,6 +197,36 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
                 @Override
                 public void onClick(View v) {
                     toggleTranslationMode();
+                }
+            });
+        }
+
+        // NEW: Bubble Launcher Button
+        btnBubbleLauncher = candidateView.findViewById(R.id.btn_bubble_launcher);
+        if (btnBubbleLauncher != null) {
+            btnBubbleLauncher.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    // Send command to Service to show the bubble
+                    Intent intent = new Intent(BubbleKeyboardService.this, FloatingTranslatorService.class);
+                    intent.setAction("ACTION_SHOW_BUBBLE");
+                    startService(intent);
+                }
+            });
+        }
+
+        // NEW: OCR Copy Button
+        btnOcrCopy = candidateView.findViewById(R.id.btn_ocr_copy);
+        if (btnOcrCopy != null) {
+            btnOcrCopy.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    // Hide keyboard so user can see screen to crop
+                    requestHideSelf(0);
+                    // Send command to start Blue OCR in Copy-Only mode
+                    Intent intent = new Intent(BubbleKeyboardService.this, FloatingTranslatorService.class);
+                    intent.setAction("ACTION_TRIGGER_COPY_ONLY");
+                    startService(intent);
                 }
             });
         }
