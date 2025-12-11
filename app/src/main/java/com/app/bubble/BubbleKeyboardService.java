@@ -75,6 +75,7 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
         LayoutInflater inflater = getLayoutInflater();
 
         // 2. Add Candidate View (Predictions + Toolbar)
+        // FIX: Use 'mainLayout, false' to respect XML sizing
         candidateView = inflater.inflate(R.layout.candidate_view, mainLayout, false);
         candidateContainer = candidateView.findViewById(R.id.candidate_container);
         
@@ -112,8 +113,15 @@ public class BubbleKeyboardService extends InputMethodService implements Keyboar
         clipboardUiManager = new ClipboardUiManager(this, clipboardPaletteView, new ClipboardUiManager.ClipboardListener() {
             @Override
             public void onPasteItem(String text) {
-                // Paste selected text and close clipboard
-                getCurrentInputConnection().commitText(text, 1);
+                // FIX: Added Null Safety Check for Input Connection
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    ic.commitText(text, 1);
+                    // Also learn the word being pasted to improve future suggestions
+                    PredictionEngine.getInstance(BubbleKeyboardService.this).learnWord(text);
+                }
+                
+                // Close clipboard and return to keyboard
                 toggleClipboardPalette(); 
                 updateCandidates(currentWord.toString());
             }
