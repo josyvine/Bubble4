@@ -14,6 +14,7 @@ import java.util.Set;
 
 /**
  * Handles "Type Memory", Dictionary Suggestions, Next-Word Prediction, and Auto-Correction.
+ * UPDATED: Prevents correcting valid words.
  */
 public class PredictionEngine {
 
@@ -84,8 +85,7 @@ public class PredictionEngine {
     }
 
     /**
-     * NEW: Returns suggestions based on the PREVIOUS word (Context).
-     * E.g. input "I" -> returns ["love", "am", "will"]
+     * Returns suggestions based on the PREVIOUS word (Context).
      */
     public List<String> getNextWordSuggestions(String previousWord) {
         if (previousWord == null) return new ArrayList<>();
@@ -113,8 +113,7 @@ public class PredictionEngine {
     }
 
     /**
-     * NEW: Learns the relationship between two words.
-     * E.g. "I", "love" -> Remembers that "love" follows "I".
+     * Learns the relationship between two words.
      */
     public void learnNextWord(String prev, String current) {
         if (prev == null || current == null || prev.isEmpty() || current.isEmpty()) return;
@@ -141,12 +140,18 @@ public class PredictionEngine {
     }
 
     /**
-     * NEW: Auto-Correction Logic.
+     * Auto-Correction Logic.
      * Finds the closest dictionary word to the typo.
-     * Uses Levenshtein Distance.
      */
     public String getBestMatch(String typo) {
         if (typo == null || typo.length() < 3) return null;
+        
+        // FIX: If the typed word is ALREADY valid, do not correct it.
+        // This prevents "apple" -> "apply" mistakes.
+        if (userDictionary.contains(typo.toLowerCase())) {
+            return null; 
+        }
+
         String bestWord = null;
         int minDistance = Integer.MAX_VALUE;
         String target = typo.toLowerCase();
@@ -155,15 +160,13 @@ public class PredictionEngine {
             int distance = calculateLevenshteinDistance(target, dictWord.toLowerCase());
             
             // Threshold: Distance must be small (1 or 2 edits)
-            // And word length difference shouldn't be huge
             if (distance < minDistance && distance <= 2 && Math.abs(dictWord.length() - target.length()) <= 2) {
                 minDistance = distance;
                 bestWord = dictWord;
             }
         }
         
-        // Only return if we found a very close match
-        if (minDistance == 0) return null; // Exact match, no correction needed
+        if (minDistance == 0) return null; 
         return bestWord;
     }
 
@@ -185,7 +188,6 @@ public class PredictionEngine {
     // --- Persistence for Bigrams ---
     
     private void saveBigrams() {
-        // Simple serialization: key:val1,val2|key2:val1...
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, List<String>> entry : bigramMap.entrySet()) {
             sb.append(entry.getKey()).append(":");
