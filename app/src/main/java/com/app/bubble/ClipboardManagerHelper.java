@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Manages clipboard history for the custom keyboard.
  * Stores the last 10 copied items.
- * UPDATED: Prevents deleted items from reappearing (Ghost Item Fix).
+ * UPDATED: Supports Delete, Undo, Ghost Item Fix, and Background Learning (Crash Fix).
  */
 public class ClipboardManagerHelper {
 
@@ -23,7 +23,7 @@ public class ClipboardManagerHelper {
     private List<String> clipHistory;
     private Context mContext; 
     
-    // FIX: Variable to ignore the item we just deleted so it doesn't auto-add back
+    // Variable to blacklist the item we just deleted so it doesn't auto-add back from system clipboard
     private String lastDeletedText = null;
     
     private static final String PREFS_NAME = "BubbleClipboardPrefs";
@@ -58,7 +58,7 @@ public class ClipboardManagerHelper {
                 if (item != null && item.getText() != null) {
                     String currentText = item.getText().toString();
                     
-                    // FIX: If this text matches what we just deleted, IGNORE IT.
+                    // If this text matches what we just deleted manually, IGNORE IT.
                     if (currentText.equals(lastDeletedText)) {
                         return;
                     }
@@ -72,13 +72,15 @@ public class ClipboardManagerHelper {
     /**
      * Adds a text to the history (Top of the list).
      * Removes duplicates and keeps size limited.
+     * Feeds the words to PredictionEngine to learn them (Background Thread).
      */
-    public void addClip(String text) {
+    public void addClip(final String text) {
         if (text == null || text.trim().isEmpty()) return;
 
         // Reset the ignored item since a new copy action happened
         lastDeletedText = null;
 
+        // 1. Manage History List (Main Thread - needs to be instant)
         if (clipHistory.contains(text)) {
             clipHistory.remove(text);
         }
@@ -90,18 +92,28 @@ public class ClipboardManagerHelper {
 
         saveHistory();
 
-        // Learn Vocabulary from Clipboard
-        String[] words = text.split("\\s+");
-        PredictionEngine engine = PredictionEngine.getInstance(mContext);
-        
-        for (String word : words) {
-            if (word.length() > 1) {
-                String cleanWord = word.replaceAll("[^a-zA-Z0-9]", "");
-                if (!cleanWord.isEmpty()) {
-                    engine.learnWord(cleanWord);
+        // 2. FIX: Learn Vocabulary in Background (Prevents Crash on Large Copy)
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // Split sentence into words by whitespace
+                String[] words = text.split("\\s+");
+                List<String> validWords = new ArrayList<>();
+                
+                for (String word : words) {
+                    if (word.length() > 1) {
+                        // Regex to remove non-alphanumeric (keep simple logic)
+                        String cleanWord = word.replaceAll("[^a-zA-Z0-9]", "");
+                        if (!cleanWord.isEmpty()) {
+                            validWords.add(cleanWord);
+                        }
+                    }
                 }
+                
+                // Batch learn all collected words (Single Disk Write)
+                PredictionEngine.getInstance(mContext).learnWordsBatch(validWords);
             }
-        }
+        }).start();
     }
 
     /**
@@ -109,7 +121,7 @@ public class ClipboardManagerHelper {
      */
     public void deleteItem(String text) {
         if (clipHistory.contains(text)) {
-            // FIX: Mark this text as "Just Deleted" so sync() ignores it
+            // Mark this text as "Just Deleted" so sync() ignores it
             lastDeletedText = text;
             
             clipHistory.remove(text);
