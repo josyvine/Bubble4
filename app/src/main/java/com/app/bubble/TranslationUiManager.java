@@ -4,6 +4,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executors;
 /**
  * Manages the In-Keyboard Translation Interface.
  * Handles Language Selection, UI updates, API calls, Live Typing Debounce, and Pasting.
+ * UPDATED: Added Scrolling support for large text inputs.
  */
 public class TranslationUiManager {
 
@@ -45,7 +47,7 @@ public class TranslationUiManager {
     public interface TranslationListener {
         void onTranslationResult(String translatedText);
         void onCloseTranslation();
-        void onPasteText(String text); // New: Handle pasted text
+        void onPasteText(String text); 
     }
 
     public TranslationUiManager(Context context, View rootView, TranslationListener listener) {
@@ -61,6 +63,10 @@ public class TranslationUiManager {
         btnSwap = rootView.findViewById(R.id.btn_swap_lang);
         inputPreview = rootView.findViewById(R.id.translation_input_preview);
         btnClose = rootView.findViewById(R.id.btn_close_translate);
+
+        // FIX: Enable Scrolling for the text box
+        // This works with maxLines="3" in XML to prevent the box from growing too big
+        inputPreview.setMovementMethod(new ScrollingMovementMethod());
 
         // 1. Setup Spinners with All Languages
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -118,7 +124,7 @@ public class TranslationUiManager {
             }
         });
 
-        // 6. Long Click to Paste Logic (New)
+        // 6. Long Click to Paste Logic
         inputPreview.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
@@ -158,13 +164,17 @@ public class TranslationUiManager {
             } else {
                 inputPreview.setText(text);
                 
+                // Scroll to bottom when typing new text
+                // Simple auto-scroll logic
+                final int scrollAmount = inputPreview.getLayout() != null ? 
+                    inputPreview.getLayout().getLineTop(inputPreview.getLineCount()) - inputPreview.getHeight() : 0;
+                if (scrollAmount > 0) inputPreview.scrollTo(0, scrollAmount);
+
                 // --- LIVE TRANSLATION DEBOUNCER ---
-                // 1. Cancel previous timer (user is still typing)
                 if (autoTranslateRunnable != null) {
                     handler.removeCallbacks(autoTranslateRunnable);
                 }
 
-                // 2. Create new timer
                 autoTranslateRunnable = new Runnable() {
                     @Override
                     public void run() {
@@ -172,7 +182,6 @@ public class TranslationUiManager {
                     }
                 };
 
-                // 3. Start timer (Wait 700ms)
                 handler.postDelayed(autoTranslateRunnable, DEBOUNCE_DELAY_MS);
             }
         }
@@ -201,7 +210,7 @@ public class TranslationUiManager {
                             // Send back to Service to type it out
                             listener.onTranslationResult(result);
                         } else {
-                            // Silent fail on live typing to avoid annoying toasts
+                            // Silent fail on live typing
                         }
                     }
                 });
