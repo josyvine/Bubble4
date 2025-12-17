@@ -1,5 +1,6 @@
 package com.app.bubble;
 
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,7 +17,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Manages the In-Keyboard Translation Interface.
- * Handles Language Selection, UI updates, API calls, and Live Typing Debounce.
+ * Handles Language Selection, UI updates, API calls, Live Typing Debounce, and Pasting.
  */
 public class TranslationUiManager {
 
@@ -44,6 +45,7 @@ public class TranslationUiManager {
     public interface TranslationListener {
         void onTranslationResult(String translatedText);
         void onCloseTranslation();
+        void onPasteText(String text); // New: Handle pasted text
     }
 
     public TranslationUiManager(Context context, View rootView, TranslationListener listener) {
@@ -115,6 +117,31 @@ public class TranslationUiManager {
                 listener.onCloseTranslation();
             }
         });
+
+        // 6. Long Click to Paste Logic (New)
+        inputPreview.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                pasteFromClipboard();
+                return true; // Consume the click
+            }
+        });
+    }
+
+    /**
+     * Reads system clipboard and notifies listener to append text.
+     */
+    private void pasteFromClipboard() {
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null && clipboard.hasPrimaryClip()) {
+            if (clipboard.getPrimaryClip().getItemCount() > 0) {
+                CharSequence pasteData = clipboard.getPrimaryClip().getItemAt(0).getText();
+                if (pasteData != null && pasteData.length() > 0) {
+                    listener.onPasteText(pasteData.toString());
+                    Toast.makeText(context, "Pasted", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
     /**
@@ -125,13 +152,13 @@ public class TranslationUiManager {
         if (inputPreview != null) {
             if (text == null || text.isEmpty()) {
                 inputPreview.setText("");
-                inputPreview.setHint("Type here to translate...");
+                inputPreview.setHint("Type or Paste here...");
                 // Cancel pending if empty
                 if (autoTranslateRunnable != null) handler.removeCallbacks(autoTranslateRunnable);
             } else {
                 inputPreview.setText(text);
                 
-                // --- FEATURE 4: LIVE TRANSLATION DEBOUNCER ---
+                // --- LIVE TRANSLATION DEBOUNCER ---
                 // 1. Cancel previous timer (user is still typing)
                 if (autoTranslateRunnable != null) {
                     handler.removeCallbacks(autoTranslateRunnable);
@@ -175,7 +202,6 @@ public class TranslationUiManager {
                             listener.onTranslationResult(result);
                         } else {
                             // Silent fail on live typing to avoid annoying toasts
-                            // or show unobtrusive error
                         }
                     }
                 });
