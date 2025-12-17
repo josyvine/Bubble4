@@ -8,25 +8,26 @@
     android:focusable="true"
     android:elevation="4dp">
 
-    <!-- LANGUAGE SELECTION BAR -->
+    <!-- LANGUAGE SELECTION BAR (Top Row) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="45dp"
+        android:layout_height="40dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="#FFFFFF"
         android:paddingStart="5dp"
         android:paddingEnd="5dp">
 
-        <!-- Back Button -->
+        <!-- Tiny Back Button (Arrow) -->
         <ImageButton
             android:id="@+id/btn_close_translate"
-            android:layout_width="35dp"
-            android:layout_height="35dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@android:drawable/ic_menu_revert"
             android:background="?android:attr/selectableItemBackground"
             android:tint="#555555"
-            android:contentDescription="Close"/>
+            android:scaleType="centerInside"
+            android:contentDescription="Back"/>
 
         <!-- Source Language -->
         <Spinner
@@ -37,7 +38,7 @@
             android:gravity="center"
             android:background="@null"/>
 
-        <!-- Swap Icon (Using Text Arrow for simplicity and clarity) -->
+        <!-- Swap Icon -->
         <TextView
             android:id="@+id/btn_swap_lang"
             android:layout_width="30dp"
@@ -61,26 +62,30 @@
 
     </LinearLayout>
 
-    <!-- INPUT PREVIEW BOX -->
-    <!-- This replaces the candidates. User types on keyboard, text appears here. -->
+    <!-- INPUT PREVIEW BOX (Middle Row) -->
+    <!-- This sits ABOVE the candidate icons now -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="8dp"
         android:background="#F0F0F0">
 
+        <!-- Making it look like an EditText but keeping it a TextView for custom input handling -->
         <TextView
             android:id="@+id/translation_input_preview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="40dp"
             android:background="#FFFFFF"
-            android:hint="Type here to translate..."
+            android:hint="Type or Paste here..."
             android:padding="10dp"
             android:textColor="#000000"
             android:textColorHint="#999999"
             android:textSize="16sp"
-            android:gravity="center_vertical"/>
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:longClickable="true"/> <!-- Enable Long Click for Paste -->
             
     </LinearLayout>
 
