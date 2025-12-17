@@ -63,19 +63,20 @@
     </LinearLayout>
 
     <!-- INPUT PREVIEW BOX (Middle Row) -->
-    <!-- This sits ABOVE the candidate icons now -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="8dp"
         android:background="#F0F0F0">
 
-        <!-- Making it look like an EditText but keeping it a TextView for custom input handling -->
+        <!-- FIX: Added maxLines="3" and scrollbars to prevent full screen expansion -->
         <TextView
             android:id="@+id/translation_input_preview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="40dp"
+            android:maxLines="3"
+            android:scrollbars="vertical"
             android:background="#FFFFFF"
             android:hint="Type or Paste here..."
             android:padding="10dp"
@@ -85,7 +86,7 @@
             android:gravity="center_vertical"
             android:clickable="true"
             android:focusable="true"
-            android:longClickable="true"/> <!-- Enable Long Click for Paste -->
+            android:longClickable="true"/> 
             
     </LinearLayout>
 
